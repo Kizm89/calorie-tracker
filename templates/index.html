@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calorie & Macro Tracker</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { color: white; text-align: center; margin-bottom: 30px; font-size: 2.5em; }
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h2 { color: #333; margin-bottom: 20px; font-size: 1.5em; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; color: #555; font-weight: 500; }
+        input, select {
+            width: 100%; padding: 12px; border: 2px solid #e0e0e0;
+            border-radius: 8px; font-size: 16px;
+        }
+        input:focus, select:focus { outline: none; border-color: #667eea; }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white; border: none; padding: 15px 30px;
+            border-radius: 8px; font-size: 16px; font-weight: 600;
+            cursor: pointer; width: 100%; margin-top: 10px;
+        }
+        .btn:hover { opacity: 0.9; }
+        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .stat-item { background: #f8f9fa; padding: 15px; border-radius: 10px; text-align: center; }
+        .stat-value { font-size: 2em; font-weight: bold; color: #667eea; }
+        .stat-label { color: #666; font-size: 0.9em; margin-top: 5px; }
+        .progress-bar { background: #e0e0e0; border-radius: 10px; height: 20px; overflow: hidden; margin: 10px 0; }
+        .progress-fill { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); height: 100%; transition: width 0.5s; }
+        .tabs { display: flex; margin-bottom: 20px; }
+        .tab { flex: 1; padding: 15px; background: #f0f0f0; border: none; cursor: pointer; font-size: 16px; }
+        .tab.active { background: white; color: #667eea; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .product-list, .consumption-list { max-height: 300px; overflow-y: auto; }
+        .product-item, .consumption-item {
+            display: flex; justify-content: space-between; padding: 10px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .ingredient-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        .remove-btn { background: #ff4444; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; }
+        .search-results { margin-top: 10px; }
+        .search-result-item {
+            padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;
+            margin-bottom: 8px; cursor: pointer; transition: all 0.2s;
+        }
+        .search-result-item:hover { border-color: #667eea; background: #f8f9fa; }
+        .search-result-item.selected { border-color: #667eea; background: #e8ecff; }
+        .nutrition-info { font-size: 0.9em; color: #666; margin-top: 5px; }
+        .loading { text-align: center; padding: 20px; color: #666; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: white; margin: 10% auto; padding: 30px; border-radius: 15px; width: 90%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .close { color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close:hover { color: #000; }
+        .add-manually-btn { background: #28a745; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; margin-top: 10px; }
+        .add-manually-btn:hover { background: #218838; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍽️ Calorie & Macro Tracker</h1>
+        
+        <div class="card">
+            <h2>📊 Today's Progress</h2>
+            <div class="stats-grid">
+                <div class="stat-item"><div class="stat-value" id="calories-consumed">0</div><div class="stat-label">kcal consumed</div></div>
+                <div class="stat-item"><div class="stat-value" id="calories-goal">0</div><div class="stat-label">kcal goal</div></div>
+                <div class="stat-item"><div class="stat-value" id="protein-consumed">0</div><div class="stat-label">protein (g)</div></div>
+                <div class="stat-item"><div class="stat-value" id="fat-consumed">0</div><div class="stat-label">fat (g)</div></div>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" id="calories-progress" style="width: 0%"></div></div>
+            <p style="text-align: center; color: #666;">Remaining: <strong id="calories-remaining">0</strong> kcal</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('track')">Track Food</button>
+            <button class="tab" onclick="showTab('products')">My Foods</button>
+            <button class="tab" onclick="showTab('dishes')">Meals</button>
+            <button class="tab" onclick="showTab('goals')">Goals</button>
+        </div>
+
+        <!-- Track Food Tab - Main feature -->
+        <div id="track-tab" class="tab-content active">
+        <div class="card">
+            <h2>🔍 Search & Track Food</h2>
+            
+            <!-- Photo Upload Section -->
+            <div class="form-group">
+                <label>📸 Upload food photo</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="file" id="food-photo" accept="image/*" onchange="handlePhotoUpload(event)">
+                    <button class="btn" onclick="openCamera()" style="background: #28a745; padding: 10px 20px; width: auto;">📷 Take Photo</button>
+                </div>
+                <div id="photo-preview" style="margin-top: 10px; display: none;">
+                    <img id="uploaded-photo" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 2px solid #e0e0e0;">
+                    <button class="btn" onclick="searchByImage()" style="background: #007bff; padding: 10px 20px; width: auto; margin-left: 10px;">🔍 Analyze Photo</button>
+                    <button class="remove-btn" onclick="clearPhoto()" style="margin-left: 10px;">Clear</button>
+                </div>
+                <div id="photo-loading" style="display: none; margin-top: 10px;" class="loading">Analyzing photo...</div>
+            </div>
+            
+            <!-- Text Search Section -->
+            <div class="form-group">
+                <label>Search food (e.g., "basmati rice", "chicken breast")</label>
+                <input type="text" id="food-search" placeholder="Type food name..." oninput="searchFood()">
+            </div>
+            <div id="search-results" class="search-results"></div>
+                
+                <div id="selected-food" style="display: none; margin-top: 20px;">
+                    <h3 style="margin-bottom: 15px;">Selected: <span id="selected-food-name"></span></h3>
+                    <div class="nutrition-info" id="selected-food-nutrition"></div>
+                    <div class="form-group" style="margin-top: 15px;">
+                        <label>Weight (grams)</label>
+                        <input type="number" id="food-weight" placeholder="e.g., 150">
+                    </div>
+                    <button class="btn" onclick="trackSelectedFood()">Track Food</button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>📋 Today's Log</h2>
+                <div class="consumption-list" id="consumption-list"></div>
+            </div>
+        </div>
+
+        <!-- My Foods Tab -->
+        <div id="products-tab" class="tab-content">
+            <div class="card">
+                <h2>➕ Add Custom Food</h2>
+                <div class="form-group"><label>Name</label><input type="text" id="product-name" placeholder="e.g., Homemade granola"></div>
+                <div class="form-group"><label>Calories (per 100g)</label><input type="number" id="product-calories" placeholder="350"></div>
+                <div class="form-group"><label>Protein (g)</label><input type="number" id="product-protein" placeholder="12"></div>
+                <div class="form-group"><label>Fat (g)</label><input type="number" id="product-fat" placeholder="6"></div>
+                <div class="form-group"><label>Carbs (g)</label><input type="number" id="product-carbs" placeholder="60"></div>
+                <button class="btn" onclick="addProduct()">Add Food</button>
+            </div>
+            <div class="card"><h2>📋 My Foods</h2><div class="product-list" id="products-list"></div></div>
+        </div>
+
+        <!-- Meals Tab -->
+        <div id="dishes-tab" class="tab-content">
+            <div class="card">
+                <h2>🍳 Create Meal</h2>
+                <div class="form-group"><label>Meal Name</label><input type="text" id="dish-name" placeholder="e.g., Breakfast bowl"></div>
+                <h3 style="margin: 20px 0 10px;">Ingredients:</h3>
+                <div id="dish-ingredients">
+                    <div class="ingredient-row">
+                        <select class="ingredient-product"><option value="">Select food</option></select>
+                        <input type="number" class="ingredient-weight" placeholder="Weight (g)">
+                        <button class="remove-btn" onclick="this.parentElement.remove()">✕</button>
+                    </div>
+                </div>
+                <button class="btn" onclick="addIngredientRow()" style="background: #28a745;">+ Add Ingredient</button>
+                <button class="btn" onclick="createDish()">Create Meal</button>
+            </div>
+            <div class="card"><h2>📋 My Meals</h2><div class="product-list" id="dishes-list"></div></div>
+        </div>
+
+        <!-- Goals Tab -->
+        <div id="goals-tab" class="tab-content">
+            <div class="card">
+                <h2>🎯 Daily Goals</h2>
+                <div class="form-group"><label>Calories (kcal)</label><input type="number" id="goal-calories" placeholder="2000"></div>
+                <div class="form-group"><label>Protein (g)</label><input type="number" id="goal-protein" placeholder="150"></div>
+                <div class="form-group"><label>Fat (g)</label><input type="number" id="goal-fat" placeholder="70"></div>
+                <div class="form-group"><label>Carbs (g)</label><input type="number" id="goal-carbs" placeholder="250"></div>
+                <button class="btn" onclick="setGoals()">Set Goals</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for adding custom food -->
+    <div id="add-food-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>➕ Add Custom Food</h2>
+                <span class="close" onclick="closeAddFoodModal()">&times;</span>
+            </div>
+            <div class="form-group">
+                <label>Food Name</label>
+                <input type="text" id="modal-food-name" placeholder="e.g., Basmati Rice">
+            </div>
+            <div class="form-group">
+                <label>Calories (per 100g)</label>
+                <input type="number" id="modal-food-calories" placeholder="130">
+            </div>
+            <div class="form-group">
+                <label>Protein (g)</label>
+                <input type="number" id="modal-food-protein" placeholder="2.7">
+            </div>
+            <div class="form-group">
+                <label>Fat (g)</label>
+                <input type="number" id="modal-food-fat" placeholder="0.3">
+            </div>
+            <div class="form-group">
+                <label>Carbs (g)</label>
+                <input type="number" id="modal-food-carbs" placeholder="28">
+            </div>
+            <button class="btn" onclick="addCustomFoodFromModal()">Add Food</button>
+        </div>
+    </div>
+
+        <script>
+            const API = {
+                search: '/api/search',
+                searchByImage: '/api/search-by-image',
+                products: '/api/products',
+                dishes: '/api/dishes',
+                consumption: '/api/consumption',
+                dailySummary: '/api/daily-summary',
+                goals: '/api/goals'
+            };
+
+            let uploadedPhotoData = null;
+
+            function openCamera() {
+                const input = document.getElementById('food-photo');
+                input.click();
+            }
+
+            function handlePhotoUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = document.getElementById('uploaded-photo');
+                    img.src = e.target.result;
+                    document.getElementById('photo-preview').style.display = 'block';
+                    document.getElementById('photo-loading').style.display = 'none';
+                    
+                    // Store base64 data for API call
+                    uploadedPhotoData = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            function clearPhoto() {
+                document.getElementById('food-photo').value = '';
+                document.getElementById('photo-preview').style.display = 'none';
+                document.getElementById('uploaded-photo').src = '';
+                uploadedPhotoData = null;
+                document.getElementById('search-results').innerHTML = '';
+            }
+
+            function openAddFoodModal(foodName = '') {
+                document.getElementById('modal-food-name').value = foodName;
+                document.getElementById('modal-food-calories').value = '';
+                document.getElementById('modal-food-protein').value = '';
+                document.getElementById('modal-food-fat').value = '';
+                document.getElementById('modal-food-carbs').value = '';
+                document.getElementById('add-food-modal').style.display = 'block';
+            }
+
+            function closeAddFoodModal() {
+                document.getElementById('add-food-modal').style.display = 'none';
+            }
+
+            async function addCustomFoodFromModal() {
+                const food = {
+                    name: document.getElementById('modal-food-name').value,
+                    calories: parseFloat(document.getElementById('modal-food-calories').value),
+                    protein: parseFloat(document.getElementById('modal-food-protein').value),
+                    fat: parseFloat(document.getElementById('modal-food-fat').value),
+                    carbs: parseFloat(document.getElementById('modal-food-carbs').value)
+                };
+
+                if (!food.name || isNaN(food.calories)) {
+                    alert('Please enter food name and calories');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(API.products, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(food)
+                    });
+
+                    if (response.ok) {
+                        closeAddFoodModal();
+                        // Clear search and show success
+                        document.getElementById('food-search').value = '';
+                        document.getElementById('search-results').innerHTML = '<div class="loading">✅ Food added successfully! You can now search for it.</div>';
+                        
+                        // Auto-select the newly added food after a short delay
+                        setTimeout(() => {
+                            document.getElementById('food-search').value = food.name;
+                            searchFood();
+                        }, 1500);
+                    } else {
+                        alert('Error adding food. Please try again.');
+                    }
+                } catch (error) {
+                    console.error('Error adding food:', error);
+                    alert('Error adding food. Please try again.');
+                }
+            }
+
+            async function searchByImage() {
+                if (!uploadedPhotoData) {
+                    alert('Please upload a photo first');
+                    return;
+                }
+
+                document.getElementById('photo-loading').style.display = 'block';
+                document.getElementById('search-results').innerHTML = '';
+
+                try {
+                    const response = await fetch(API.searchByImage, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ image: uploadedPhotoData })
+                    });
+
+                    const results = await response.json();
+                    
+                    document.getElementById('photo-loading').style.display = 'none';
+                    
+                    if (results.length === 0) {
+                        document.getElementById('search-results').innerHTML = '<div class="loading">No food items found in photo. Try a clearer photo.</div>';
+                        return;
+                    }
+
+                    const container = document.getElementById('search-results');
+                    container.innerHTML = results.map((item, index) => `
+                        <div class="search-result-item" onclick="selectFood(${index})" data-index="${index}">
+                            <strong>${item.name}</strong>
+                            <div class="nutrition-info">
+                                ${item.calories} kcal | P: ${item.protein}g | F: ${item.fat}g | C: ${item.carbs}g (per 100g)
+                            </div>
+                        </div>
+                    `).join('');
+
+                    window.searchResults = results;
+                } catch (error) {
+                    console.error('Error searching by image:', error);
+                    document.getElementById('photo-loading').style.display = 'none';
+                    document.getElementById('search-results').innerHTML = '<div class="loading">Error analyzing photo. Please try again.</div>';
+                }
+            }
+
+        let selectedFoodItem = null;
+        let searchTimeout = null;
+
+        function showTab(name) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(name + '-tab').classList.add('active');
+            if (name === 'products') loadProducts();
+            if (name === 'dishes') loadDishes();
+            if (name === 'track') {
+                loadConsumption();
+                // Clear photo when switching to track tab
+                clearPhoto();
+            }
+            if (name === 'goals') loadGoals();
+        }
+
+        // Search food with debounce
+        function searchFood() {
+            clearTimeout(searchTimeout);
+            const query = document.getElementById('food-search').value.trim();
+            
+            if (query.length < 2) {
+                // Show popular foods when search is empty
+                showPopularFoods();
+                document.getElementById('selected-food').style.display = 'none';
+                return;
+            }
+            
+            searchTimeout = setTimeout(async () => {
+                const response = await fetch(`${API.search}?q=${encodeURIComponent(query)}`);
+                const results = await response.json();
+                
+                const container = document.getElementById('search-results');
+                if (results.length === 0) {
+                    const query = document.getElementById('food-search').value.trim();
+                    container.innerHTML = `
+                        <div class="loading">
+                            <p>No results found for "${query}".</p>
+                            <button class="add-manually-btn" onclick="openAddFoodModal('${query}')">
+                                ➕ Add "${query}" manually
+                            </button>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                container.innerHTML = results.map((item, index) => `
+                    <div class="search-result-item" onclick="selectFood(${index})" data-index="${index}">
+                        <strong>${item.name}</strong>
+                        <div class="nutrition-info">
+                            ${item.calories} kcal | P: ${item.protein}g | F: ${item.fat}g | C: ${item.carbs}g (per 100g)
+                        </div>
+                    </div>
+                `).join('') + `
+                    <button class="add-manually-btn" onclick="openAddFoodModal('${query}')">
+                        ➕ Add a different food manually
+                    </button>
+                `;
+                
+                // Store results for selection
+                window.searchResults = results;
+            }, 300);
+        }
+
+        function showPopularFoods() {
+            const popularFoods = [
+                { name: 'Rice', calories: 130, protein: 2.7, fat: 0.3, carbs: 28 },
+                { name: 'Chicken Breast', calories: 165, protein: 31, fat: 3.6, carbs: 0 },
+                { name: 'Eggs', calories: 155, protein: 13, fat: 11, carbs: 1.1 },
+                { name: 'Banana', calories: 89, protein: 1.1, fat: 0.3, carbs: 23 },
+                { name: 'Apple', calories: 52, protein: 0.3, fat: 0.2, carbs: 14 },
+                { name: 'Bread', calories: 265, protein: 9, fat: 3.2, carbs: 49 }
+            ];
+            
+            const container = document.getElementById('search-results');
+            container.innerHTML = `
+                <div style="margin-bottom: 15px; color: #666; font-style: italic;">
+                    💡 Popular foods - click to select:
+                </div>
+                ${popularFoods.map((item, index) => `
+                    <div class="search-result-item" onclick="selectPopularFood(${index})" data-index="${index}">
+                        <strong>${item.name}</strong>
+                        <div class="nutrition-info">
+                            ${item.calories} kcal | P: ${item.protein}g | F: ${item.fat}g | C: ${item.carbs}g (per 100g)
+                        </div>
+                    </div>
+                `).join('')}
+                <button class="add-manually-btn" onclick="openAddFoodModal()">
+                    ➕ Add custom food
+                </button>
+            `;
+            
+            window.popularFoods = popularFoods;
+        }
+
+        function selectPopularFood(index) {
+            const food = window.popularFoods[index];
+            selectedFoodItem = food;
+            
+            // Highlight selected
+            document.querySelectorAll('.search-result-item').forEach((item, i) => {
+                item.classList.toggle('selected', i === index);
+            });
+            
+            // Show selection panel
+            document.getElementById('selected-food-name').textContent = food.name;
+            document.getElementById('selected-food-nutrition').innerHTML = `
+                <strong>Nutrition per 100g:</strong><br>
+                Calories: ${food.calories} kcal<br>
+                Protein: ${food.protein}g | Fat: ${food.fat}g | Carbs: ${food.carbs}g
+            `;
+            document.getElementById('selected-food').style.display = 'block';
+            document.getElementById('food-weight').focus();
+        }
+
+        function selectFood(index) {
+            const food = window.searchResults[index];
+            selectedFoodItem = food;
+            
+            // Highlight selected
+            document.querySelectorAll('.search-result-item').forEach((item, i) => {
+                item.classList.toggle('selected', i === index);
+            });
+            
+            // Show selection panel
+            document.getElementById('selected-food-name').textContent = food.name;
+            document.getElementById('selected-food-nutrition').innerHTML = `
+                <strong>Nutrition per 100g:</strong><br>
+                Calories: ${food.calories} kcal<br>
+                Protein: ${food.protein}g | Fat: ${food.fat}g | Carbs: ${food.carbs}g
+            `;
+            document.getElementById('selected-food').style.display = 'block';
+            document.getElementById('food-weight').focus();
+        }
+
+        async function trackSelectedFood() {
+            if (!selectedFoodItem) return;
+            
+            const weight = parseFloat(document.getElementById('food-weight').value);
+            if (!weight || weight <= 0) {
+                alert('Please enter a valid weight');
+                return;
+            }
+            
+            // First, save the food to database if not already there
+            let productId = selectedFoodItem.id;
+            if (!productId) {
+                const response = await fetch(API.products, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(selectedFoodItem)
+                });
+                const result = await response.json();
+                if (result.success) {
+                    // Get the product ID
+                    const products = await fetch(API.products).then(r => r.json());
+                    const saved = products.find(p => p.name === selectedFoodItem.name);
+                    if (saved) productId = saved.id;
+                }
+            }
+            
+            // Track consumption
+            if (productId) {
+                await fetch(API.consumption, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ product_id: productId, weight: weight })
+                });
+                
+                // Reset
+                document.getElementById('food-search').value = '';
+                document.getElementById('food-weight').value = '';
+                document.getElementById('selected-food').style.display = 'none';
+                document.getElementById('search-results').innerHTML = '';
+                selectedFoodItem = null;
+                
+                // Clear photo after successful tracking
+                clearPhoto();
+                
+                loadConsumption();
+                loadDailySummary();
+            }
+        }
+
+        async function loadProducts() {
+            const r = await fetch(API.products);
+            const products = await r.json();
+            document.getElementById('products-list').innerHTML = products.map(p => 
+                `<div class="product-item"><div><strong>${p.name}</strong></div><div>${p.calories} kcal | P:${p.protein}g F:${p.fat}g C:${p.carbs}g</div></div>`
+            ).join('');
+            updateSelects(products);
+        }
+
+        function updateSelects(products) {
+            const opts = '<option value="">Select food</option>' + products.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+            document.querySelectorAll('.ingredient-product').forEach(s => s.innerHTML = opts);
+        }
+
+        async function addProduct() {
+            const p = {
+                name: document.getElementById('product-name').value,
+                calories: parseFloat(document.getElementById('product-calories').value),
+                protein: parseFloat(document.getElementById('product-protein').value),
+                fat: parseFloat(document.getElementById('product-fat').value),
+                carbs: parseFloat(document.getElementById('product-carbs').value)
+            };
+            if (!p.name || isNaN(p.calories)) { alert('Please enter name and calories'); return; }
+            await fetch(API.products, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(p) });
+            document.querySelectorAll('#products-tab input').forEach(i => i.value = '');
+            loadProducts();
+        }
+
+        function addIngredientRow() {
+            const div = document.createElement('div');
+            div.className = 'ingredient-row';
+            div.innerHTML = `<select class="ingredient-product"><option value="">Select food</option></select><input type="number" class="ingredient-weight" placeholder="Weight (g)"><button class="remove-btn" onclick="this.parentElement.remove()">✕</button>`;
+            document.getElementById('dish-ingredients').appendChild(div);
+            loadProducts();
+        }
+
+        async function createDish() {
+            const name = document.getElementById('dish-name').value;
+            if (!name) { alert('Enter meal name'); return; }
+            const ingredients = [];
+            document.querySelectorAll('.ingredient-row').forEach(row => {
+                const pid = row.querySelector('.ingredient-product').value;
+                const w = parseFloat(row.querySelector('.ingredient-weight').value);
+                if (pid && w) ingredients.push({ product_id: parseInt(pid), weight: w });
+            });
+            if (!ingredients.length) { alert('Add ingredients'); return; }
+            await fetch(API.dishes, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ name, ingredients }) });
+            document.getElementById('dish-name').value = '';
+            document.getElementById('dish-ingredients').innerHTML = `<div class="ingredient-row"><select class="ingredient-product"><option value="">Select food</option></select><input type="number" class="ingredient-weight" placeholder="Weight (g)"><button class="remove-btn" onclick="this.parentElement.remove()">✕</button></div>`;
+            loadDishes();
+        }
+
+        async function loadDishes() {
+            const r = await fetch(API.dishes);
+            const dishes = await r.json();
+            document.getElementById('dishes-list').innerHTML = dishes.map(d => 
+                `<div class="product-item"><div><strong>${d.name}</strong></div><div>${d.total_calories.toFixed(0)} kcal | ${d.total_weight}g</div></div>`
+            ).join('');
+            const select = document.getElementById('consumption-dish');
+            select.innerHTML = '<option value="">Select meal</option>' + dishes.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+        }
+
+        async function loadConsumption() {
+            const r = await fetch(API.consumption);
+            const c = await r.json();
+            document.getElementById('consumption-list').innerHTML = c.map(item => 
+                `<div class="consumption-item"><div><strong>${item.product_name || item.dish_name}</strong></div><div>${item.weight}g | ${item.calories.toFixed(0)} kcal</div></div>`
+            ).join('');
+        }
+
+        async function loadDailySummary() {
+            const r = await fetch(API.dailySummary);
+            const s = await r.json();
+            document.getElementById('calories-consumed').textContent = Math.round(s.consumed.calories);
+            document.getElementById('calories-goal').textContent = Math.round(s.goals.calories);
+            document.getElementById('protein-consumed').textContent = Math.round(s.consumed.protein);
+            document.getElementById('fat-consumed').textContent = Math.round(s.consumed.fat);
+            const remaining = Math.round(s.goals.calories - s.consumed.calories);
+            document.getElementById('calories-remaining').textContent = remaining > 0 ? remaining : 0;
+            const progress = s.goals.calories > 0 ? Math.min((s.consumed.calories / s.goals.calories) * 100, 100) : 0;
+            document.getElementById('calories-progress').style.width = progress + '%';
+        }
+
+        async function loadGoals() {
+            const r = await fetch(API.goals);
+            const g = await r.json();
+            if (g && g.id) {
+                document.getElementById('goal-calories').value = g.calories;
+                document.getElementById('goal-protein').value = g.protein;
+                document.getElementById('goal-fat').value = g.fat;
+                document.getElementById('goal-carbs').value = g.carbs;
+            }
+        }
+
+        async function setGoals() {
+            const goals = {
+                calories: parseFloat(document.getElementById('goal-calories').value),
+                protein: parseFloat(document.getElementById('goal-protein').value),
+                fat: parseFloat(document.getElementById('goal-fat').value),
+                carbs: parseFloat(document.getElementById('goal-carbs').value)
+            };
+            await fetch(API.goals, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(goals) });
+            loadDailySummary();
+            alert('Goals set!');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { 
+            loadDailySummary(); 
+            loadConsumption(); 
+            showPopularFoods(); // Show popular foods on load
+        });
+    </script>
+</body>
+</html>
